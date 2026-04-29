@@ -1,1 +1,14 @@
-# hobo-reunion-quiz
+# チーム対抗クイズ大会システム (Hobo-Quiz-Engine)
+
+保々中学校同窓会（2027年1月開催）向けの専用クイズシステムです。
+
+## 🚀 主な機能
+- **リアルタイム解答・集計**: ミリ秒単位の速度判定
+- **ベッティングシステム**: 正解時の得点倍率選択 (x1, x2, x3)[cite: 1]
+- **マジョリティ・ボーナス**: 会場の多数派を当てる価値観同調ゲーム[cite: 1]
+- **ライブ・ダッシュボード**: プロジェクター投影用のランキング画面[cite: 1]
+
+## 🛠 技術スタック
+- **Frontend**: Next.js 14+, Tailwind CSS
+- **Backend**: FastAPI, WebSocket/Pusher
+- **DB/ORM**: Prisma, PostgreSQL (または SQLite)# hobo-reunion-quiz
