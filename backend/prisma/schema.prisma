@@ -1,0 +1,56 @@
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Team {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  passcode  String
+  score     Float    @default(0)
+  createdAt DateTime @default(now())
+
+  answers   Answer[]
+}
+
+model Question {
+  id            Int      @id @default(autoincrement())
+  text          String
+  type          String   // "normal", "majority"
+  timeLimit     Int      @default(30) // seconds
+  correctOption Int?     // for normal questions
+  options       Option[]
+  isActive      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  answers       Answer[]
+}
+
+model Option {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  text       String
+  order      Int
+  question   Question @relation(fields: [questionId], references: [id])
+}
+
+model Answer {
+  id         Int      @id @default(autoincrement())
+  teamId     Int
+  questionId Int
+  optionId   Int      // Which option they picked
+  bet        Int      // 1, 2, or 3
+  timeTaken  Float    // in milliseconds
+  isCorrect  Boolean? // null for majority questions until calculated
+  points     Float?   // calculated points
+  createdAt  DateTime @default(now())
+
+  team       Team     @relation(fields: [teamId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id])
+}
