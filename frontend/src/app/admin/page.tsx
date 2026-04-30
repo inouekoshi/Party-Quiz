@@ -97,7 +97,7 @@ export default function AdminPage() {
   }, [wsMessage]);
 
   const createRoom = async () => {
-    if (!confirm("新しい部屋を作成します。既存のデータはすべてリセットされます。よろしいですか？")) return;
+    // if (!confirm("新しい部屋を作成します。既存のデータはすべてリセットされます。よろしいですか？")) return;
     const res = await fetch(`${API_URL}/admin/room`, { method: "POST" });
     const data = await res.json();
     setRoom(data);
@@ -147,22 +147,22 @@ export default function AdminPage() {
   };
 
   const startQuestion = async (qId: number) => {
-    if (!confirm(`第${questions.findIndex(q => q.id === qId) + 1}問を出題しますか？`)) return;
+    // if (!confirm(`第${questions.findIndex(q => q.id === qId) + 1}問を出題しますか？`)) return;
     await fetch(`${API_URL}/admin/start/${qId}`, { method: "POST" });
   };
 
   const closeQuestion = async (qId: number) => {
-    if (!confirm("解答を締め切りますか？")) return;
+    // if (!confirm("解答を締め切りますか？")) return;
     await fetch(`${API_URL}/admin/close/${qId}`, { method: "POST" });
   };
 
   const revealAnswer = async (qId: number) => {
-    if (!confirm("正解・結果を発表しますか？")) return;
+    // if (!confirm("正解・結果を発表しますか？")) return;
     await fetch(`${API_URL}/admin/reveal/${qId}`, { method: "POST" });
   };
 
   const finishQuiz = async () => {
-    if (!confirm("クイズ大会を終了して最終結果を発表しますか？")) return;
+    // if (!confirm("クイズ大会を終了して最終結果を発表しますか？")) return;
     await fetch(`${API_URL}/admin/finish`, { method: "POST" });
   };
 
