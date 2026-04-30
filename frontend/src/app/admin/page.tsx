@@ -93,8 +93,18 @@ export default function AdminPage() {
           </div>
         </header>
 
-        {gameState.state !== "finished" && (
-          <div className="flex justify-end mb-4">
+        <div className="flex justify-end mb-4 gap-4">
+          <button
+            onClick={async () => {
+              if (!confirm("【警告】ゲームを初期化し、全データと問題をリセットします。よろしいですか？")) return;
+              await fetch(`${API_URL}/admin/reset_all`, { method: "POST" });
+              window.location.reload();
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg"
+          >
+            ⚠️ データ＆問題リセット
+          </button>
+          {gameState.state !== "finished" && (
             <button
               onClick={async () => {
                 if (!confirm("本当にすべての問題を終了して、最終表彰式へ進みますか？")) return;
@@ -104,8 +114,8 @@ export default function AdminPage() {
             >
               🎉 全問終了（最終結果発表へ）
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6 overflow-x-auto">
           <table className="w-full text-left border-collapse">

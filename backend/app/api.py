@@ -268,3 +268,28 @@ async def get_team_stats(team_id: int):
         "avg_time": round(avg_time, 2),
         "history": history
     }
+
+@router.post("/admin/reset_all")
+async def reset_all():
+    """ゲームの状態、スコア、回答をリセットし、シードデータを再投入する"""
+    import subprocess
+    import sys
+    
+    # 状態の初期化
+    state.current_question_id = None
+    state.status = "waiting"
+    state.started_at = None
+    
+    # スコアと回答のクリア
+    await prisma.answer.delete_many()
+    await prisma.team.update_many(data={"score": 0})
+    
+    # seed.pyを実行して問題を再構築 (Render環境なので python を使用)
+    subprocess.run(["python", "seed.py"], check=True)
+    
+    # フロントエンドに更新を通知
+    await manager.broadcast({
+        "event": "quiz_finished",
+        "data": {"leaderboard": []}
+    })
+    return {"status": "reset_success"}
