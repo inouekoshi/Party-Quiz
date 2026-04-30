@@ -2,10 +2,15 @@
 # Render Build Script
 set -o errexit
 
+# 1. 依存関係のインストール
 pip install -r requirements.txt
-# 環境変数で指定した場所にバイナリをダウンロード
-prisma py fetch
-# クライアント生成
+
+# 2. バイナリをカレントディレクトリ（backend/）に強制ダウンロード
+# PRISMA_PY_BINARY_CACHE_DIR を指定することで、隠しフォルダではなく見える場所に置きます
+PRISMA_PY_BINARY_CACHE_DIR=. prisma py fetch
+
+# 3. クライアント生成
 prisma generate
-# DB構造の反映
+
+# 4. DB構造の反映
 prisma db push
