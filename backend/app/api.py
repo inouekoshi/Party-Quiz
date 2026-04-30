@@ -29,38 +29,33 @@ def generate_passcode(length: int = 5) -> str:
 @router.post("/admin/room")
 async def create_room():
     """管理者が部屋を作成し、パスコードを発行する"""
-    try:
-        # 既存の全部屋を非アクティブにする
-        await prisma.room.update_many(data={"isActive": False})
+    # 既存の全部屋を非アクティブにする
+    await prisma.room.update_many(where={}, data={"isActive": False})
 
-        # 全データをリセット（チームは部屋ごとに管理するため）
-        await prisma.answer.delete_many()
-        await prisma.option.delete_many()
-        await prisma.question.delete_many()
-        await prisma.team.delete_many()
+    # 全データをリセット（チームは部屋ごとに管理するため）
+    await prisma.answer.delete_many(where={})
+    await prisma.option.delete_many(where={})
+    await prisma.question.delete_many(where={})
+    await prisma.team.delete_many(where={})
 
-        # 状態リセット
-        state.current_question_id = None
-        state.status = "waiting"
-        state.started_at = None
-        state.room_id = None
+    # 状態リセット
+    state.current_question_id = None
+    state.status = "waiting"
+    state.started_at = None
+    state.room_id = None
 
-        # 新しい部屋を作成
-        passcode = generate_passcode()
-        room = await prisma.room.create(data={"passcode": passcode})
-        state.room_id = room.id
+    # 新しい部屋を作成
+    passcode = generate_passcode()
+    room = await prisma.room.create(data={"passcode": passcode})
+    state.room_id = room.id
 
-        # WebSocketで全員に通知
-        await manager.broadcast({
-            "event": "room_created",
-            "data": {"room_id": room.id, "passcode": passcode}
-        })
+    # WebSocketで全員に通知
+    await manager.broadcast({
+        "event": "room_created",
+        "data": {"room_id": room.id, "passcode": passcode}
+    })
 
-        return {"room_id": room.id, "passcode": passcode}
-    except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        return {"error": str(e), "traceback": traceback.format_exc()}
+    return {"room_id": room.id, "passcode": passcode}
 
 
 @router.get("/admin/room")

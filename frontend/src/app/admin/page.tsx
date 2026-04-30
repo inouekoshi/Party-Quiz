@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+
+import { useState, useEffect } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
@@ -9,8 +10,6 @@ interface Team {
   id: number;
   name: string;
   score: number;
-  bets3x: number;
-  bets2x: number;
 }
 
 interface Option {
@@ -31,13 +30,9 @@ interface Question {
 export default function AdminPage() {
   const { wsMessage } = useWebSocket(WS_URL);
 
-  // 部屋・チーム
   const [room, setRoom] = useState<{ id: number; passcode: string } | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [copied, setCopied] = useState(false);
-
-  // ゲーム状態
   const [gameState, setGameState] = useState<{ state: string; question_id: number | null }>({
     state: "waiting",
     question_id: null,
@@ -46,37 +41,51 @@ export default function AdminPage() {
   // 問題作成フォーム
   const [newQ, setNewQ] = useState({
     text: "",
-    type: "normal" as "normal" | "majority",
+    type: "normal",
     timeLimit: 60,
     correctOption: 1,
-    options: ["", "", "", ""],
+    options: [
+      { text: "", order: 1 },
+      { text: "", order: 2 },
+      { text: "", order: 3 },
+      { text: "", order: 4 },
+    ],
   });
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState("");
 
-  const fetchAll = useCallback(async () => {
+  // 初期ロード
+  useEffect(() => {
+    fetchInitialState();
+  }, []);
+
+  const fetchInitialState = async () => {
     try {
-      const [roomRes, stateRes, qRes] = await Promise.all([
-        fetch(`${API_URL}/admin/room`),
-        fetch(`${API_URL}/state`),
-        fetch(`${API_URL}/admin/questions`),
-      ]);
-      const roomData = await roomRes.json();
-      const stateData = await stateRes.json();
-      const qData = await qRes.json();
+      const res = await fetch(`${API_URL}/state`);
+      const data = await res.json();
+      setGameState({ state: data.status, question_id: data.current_question_id });
+      if (data.leaderboard) setTeams(data.leaderboard);
 
-      if (roomData.room) setRoom(roomData.room);
-      if (roomData.teams) setTeams(roomData.teams);
-      setGameState({ state: stateData.status, question_id: stateData.current_question_id });
-      setQuestions(Array.isArray(qData) ? qData : []);
+      // アクティブな部屋を取得
+      const roomRes = await fetch(`${API_URL}/admin/room`);
+      const rooms = await roomRes.json();
+      if (rooms.length > 0) {
+        setRoom(rooms[0]);
+        // 部屋の問題リストも取得
+        fetchQuestions(rooms[0].id);
+      }
     } catch (e) {
       console.error(e);
     }
-  }, []);
+  };
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  const fetchQuestions = async (roomId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/questions?room_id=${roomId}`);
+      const data = await res.json();
+      setQuestions(data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // WebSocketイベント処理
   useEffect(() => {
@@ -97,11 +106,11 @@ export default function AdminPage() {
   }, [wsMessage]);
 
   const createRoom = async () => {
-    // if (!confirm("新しい部屋を作成します。既存のデータはすべてリセットされます。よろしいですか？")) return;
+    if (!confirm("新しい部屋を作成します。既存のデータはすべてリセットされます。よろしいですか？")) return;
     const res = await fetch(`${API_URL}/admin/room`, { method: "POST" });
     const data = await res.json();
     if (data.error) {
-      alert("Backend Error: " + data.error + "\n" + (data.traceback || ""));
+      alert("エラーが発生しました: " + data.error);
       return;
     }
     setRoom(data);
@@ -113,357 +122,273 @@ export default function AdminPage() {
   const copyPasscode = () => {
     if (!room) return;
     navigator.clipboard.writeText(room.passcode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    alert("パスコードをコピーしました: " + room.passcode);
   };
 
-  const createQuestion = async () => {
-    setCreateError("");
-    if (!newQ.text.trim()) { setCreateError("問題文を入力してください"); return; }
-    if (newQ.options.some(o => !o.trim())) { setCreateError("選択肢を全て入力してください"); return; }
-    if (newQ.type === "normal" && !newQ.correctOption) { setCreateError("正解を選択してください"); return; }
-
-    setCreating(true);
+  const addQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!room) return;
     try {
       const res = await fetch(`${API_URL}/admin/questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: newQ.text,
-          type: newQ.type,
-          time_limit: newQ.timeLimit,
-          correct_option: newQ.type === "normal" ? newQ.correctOption : null,
-          options: newQ.options.map((t, i) => ({ text: t, order: i + 1 })),
-        }),
+        body: JSON.stringify({ ...newQ, roomId: room.id }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "作成に失敗しました");
+      if (res.ok) {
+        fetchQuestions(room.id);
+        setNewQ({
+          ...newQ,
+          text: "",
+          options: newQ.options.map(o => ({ ...o, text: "" })),
+        });
       }
-      const created = await res.json();
-      setQuestions(prev => [...prev, created]);
-      setNewQ({ text: "", type: "normal", timeLimit: 60, correctOption: 1, options: ["", "", "", ""] });
-    } catch (e: any) {
-      setCreateError(e.message);
-    } finally {
-      setCreating(false);
+    } catch (e) {
+      console.error(e);
     }
   };
 
   const startQuestion = async (qId: number) => {
-    // if (!confirm(`第${questions.findIndex(q => q.id === qId) + 1}問を出題しますか？`)) return;
+    if (!confirm(`第${questions.findIndex(q => q.id === qId) + 1}問を出題しますか？`)) return;
     await fetch(`${API_URL}/admin/start/${qId}`, { method: "POST" });
   };
 
   const closeQuestion = async (qId: number) => {
-    // if (!confirm("解答を締め切りますか？")) return;
+    if (!confirm("解答を締め切りますか？")) return;
     await fetch(`${API_URL}/admin/close/${qId}`, { method: "POST" });
   };
 
   const revealAnswer = async (qId: number) => {
-    // if (!confirm("正解・結果を発表しますか？")) return;
+    if (!confirm("正解・結果を発表しますか？")) return;
     await fetch(`${API_URL}/admin/reveal/${qId}`, { method: "POST" });
   };
 
   const finishQuiz = async () => {
-    // if (!confirm("クイズ大会を終了して最終結果を発表しますか？")) return;
+    if (!confirm("クイズ大会を終了して最終結果を発表しますか？")) return;
     await fetch(`${API_URL}/admin/finish`, { method: "POST" });
   };
 
-  const currentQ = questions.find(q => q.id === gameState.question_id);
-
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6 font-sans">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* ヘッダー */}
-        <header className="flex flex-wrap justify-between items-center gap-4 bg-gray-900 p-5 rounded-2xl border border-gray-700 shadow-xl">
-          <div>
-            <h1 className="text-3xl font-black text-blue-400">⚙️ 管理者パネル</h1>
-            <p className="text-gray-400 text-sm mt-1">Hobo Reunion Quiz — 進行コントロール</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-400">ステータス:</span>
-            <span className={`px-4 py-2 rounded-full font-bold text-sm ${
-              gameState.state === "answering" ? "bg-red-500 animate-pulse" :
-              gameState.state === "closed" ? "bg-yellow-500" :
-              gameState.state === "revealed" ? "bg-green-500" :
-              gameState.state === "finished" ? "bg-purple-600" : "bg-gray-600"
-            }`}>
-              {gameState.state === "answering" ? `📣 第${gameState.question_id}問 解答受付中` :
-               gameState.state === "closed" ? `⏳ 第${gameState.question_id}問 締め切り済み` :
-               gameState.state === "revealed" ? `✅ 第${gameState.question_id}問 結果発表済み` :
-               gameState.state === "finished" ? "🎉 大会終了" : "⏸ 待機中"}
-            </span>
-            {gameState.state !== "finished" && room && (
-              <button
-                onClick={finishQuiz}
-                className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-5 rounded-lg shadow transition-colors"
-              >
-                🏁 大会終了
-              </button>
-            )}
-          </div>
-        </header>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* サイドバー: チーム一覧 */}
+      <div className="w-80 bg-white border-r border-gray-200 p-6 flex flex-col">
+        <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
+          👥 参加チーム
+          <span className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">
+            {teams.length}
+          </span>
+        </h2>
+        <div className="flex-grow overflow-y-auto space-y-3">
+          {teams.map((team, i) => (
+            <div key={team.id} className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex justify-between items-center">
+              <div>
+                <div className="text-xs text-gray-400 font-bold">RANK {i+1}</div>
+                <div className="font-bold text-gray-800">{team.name}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-blue-600 font-black">{Math.round(team.score)}<span className="text-[10px] ml-0.5">pt</span></div>
+              </div>
+            </div>
+          ))}
+          {teams.length === 0 && (
+            <div className="text-center py-10 text-gray-400 text-sm">まだ参加チームはいません</div>
+          )}
+        </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 左列: 部屋管理 + 参加チーム */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* 部屋パネル */}
-            <div className="bg-gray-900 rounded-2xl border border-gray-700 p-5 shadow-xl">
-              <h2 className="text-lg font-black text-white mb-4">🚪 部屋管理</h2>
+      {/* メインコンテンツ */}
+      <div className="flex-1 p-8 overflow-y-auto">
+        <div className="max-w-4xl mx-auto space-y-8">
+          
+          {/* 部屋管理セクション */}
+          <section className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 mb-1">部屋の管理</h2>
+                <p className="text-gray-500 text-sm">大会を開始するには部屋を作成してください</p>
+              </div>
               <button
                 onClick={createRoom}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl shadow-lg transition-colors text-lg"
+                className="bg-gray-900 hover:bg-black text-white px-6 py-3 rounded-2xl font-bold transition-all flex items-center gap-2"
               >
                 ＋ 新しい部屋を作成
               </button>
-              {room && (
-                <div className="mt-4 bg-gray-800 rounded-xl p-4 border border-blue-500/30">
-                  <p className="text-gray-400 text-xs font-bold mb-2">参加パスコード</p>
-                  <div className="flex items-center gap-3">
-                    <span className="text-5xl font-black text-blue-400 tracking-widest font-mono">
-                      {room.passcode}
-                    </span>
-                    <button
-                      onClick={copyPasscode}
-                      className={`text-sm px-3 py-2 rounded-lg font-bold transition-colors ${
-                        copied ? "bg-green-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"
-                      }`}
-                    >
-                      {copied ? "✓ コピー済み" : "コピー"}
-                    </button>
-                  </div>
-                  <p className="text-gray-500 text-xs mt-3">このコードを参加者に伝えてください</p>
-                </div>
-              )}
             </div>
 
-            {/* 参加チーム */}
-            <div className="bg-gray-900 rounded-2xl border border-gray-700 p-5 shadow-xl">
-              <h2 className="text-lg font-black text-white mb-4">
-                👥 参加チーム
-                <span className="ml-2 text-sm font-normal text-gray-400">({teams.length} チーム)</span>
-              </h2>
-              {teams.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">まだ参加者がいません</p>
-              ) : (
-                <div className="space-y-2">
-                  {teams.map((t, i) => (
-                    <div key={t.id} className="flex items-center justify-between bg-gray-800 rounded-xl px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className={`text-sm font-black w-6 h-6 flex items-center justify-center rounded-full ${
-                          i === 0 ? "bg-yellow-400 text-yellow-900" :
-                          i === 1 ? "bg-gray-300 text-gray-900" :
-                          i === 2 ? "bg-amber-600 text-white" : "bg-gray-700 text-gray-400"
-                        }`}>{i + 1}</span>
-                        <span className="font-bold text-white text-sm">{t.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-green-400 font-mono font-bold">{Math.round(t.score)}pt</span>
-                        <div className="text-xs text-gray-500 mt-0.5">
-                          3倍:残{t.bets3x} / 2倍:残{t.bets2x}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+            {room ? (
+              <div className="bg-blue-50 border-2 border-blue-100 rounded-2xl p-6 flex items-center justify-between">
+                <div>
+                  <div className="text-blue-600 text-xs font-black uppercase tracking-wider mb-1">Current Room Passcode</div>
+                  <div className="text-4xl font-black text-blue-900 tracking-widest">{room.passcode}</div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* 右列: 問題作成 + 問題リスト */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* 問題作成フォーム */}
-            {room && (
-              <div className="bg-gray-900 rounded-2xl border border-gray-700 p-5 shadow-xl">
-                <h2 className="text-lg font-black text-white mb-4">✏️ 問題を作成する</h2>
-
-                {/* 問題タイプ選択 */}
-                <div className="flex gap-3 mb-4">
-                  {(["normal", "majority"] as const).map(t => (
-                    <button
-                      key={t}
-                      onClick={() => setNewQ(prev => ({ ...prev, type: t }))}
-                      className={`flex-1 py-3 rounded-xl font-bold text-sm transition-colors ${
-                        newQ.type === t
-                          ? t === "normal" ? "bg-blue-600 text-white" : "bg-purple-600 text-white"
-                          : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                      }`}
-                    >
-                      {t === "normal" ? "🎯 通常クイズ" : "🤝 マジョリティ"}
-                    </button>
-                  ))}
-                </div>
-
-                {/* 問題文 */}
-                <textarea
-                  className="w-full bg-gray-800 border border-gray-600 rounded-xl p-3 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none resize-none mb-4"
-                  rows={2}
-                  placeholder="問題文を入力..."
-                  value={newQ.text}
-                  onChange={e => setNewQ(prev => ({ ...prev, text: e.target.value }))}
-                />
-
-                {/* 選択肢 */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {newQ.options.map((opt, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className={`text-sm font-black w-7 h-7 flex items-center justify-center rounded-lg flex-shrink-0 ${
-                        ["bg-red-500", "bg-blue-500", "bg-green-500", "bg-yellow-500"][i]
-                      }`}>
-                        {String.fromCharCode(65 + i)}
-                      </span>
-                      <input
-                        className="flex-1 bg-gray-800 border border-gray-600 rounded-lg p-2 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none text-sm"
-                        placeholder={`選択肢 ${String.fromCharCode(65 + i)}`}
-                        value={opt}
-                        onChange={e => {
-                          const opts = [...newQ.options];
-                          opts[i] = e.target.value;
-                          setNewQ(prev => ({ ...prev, options: opts }));
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* 正解選択 (通常のみ) */}
-                {newQ.type === "normal" && (
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-400 font-bold mb-2">正解を選択:</p>
-                    <div className="flex gap-2">
-                      {[1, 2, 3, 4].map(n => (
-                        <button
-                          key={n}
-                          onClick={() => setNewQ(prev => ({ ...prev, correctOption: n }))}
-                          className={`flex-1 py-2 rounded-lg font-black transition-colors ${
-                            newQ.correctOption === n
-                              ? "bg-green-500 text-white"
-                              : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                          }`}
-                        >
-                          {String.fromCharCode(64 + n)}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 制限時間 */}
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-sm text-gray-400 font-bold whitespace-nowrap">制限時間:</span>
-                  {[30, 45, 60, 90].map(s => (
-                    <button
-                      key={s}
-                      onClick={() => setNewQ(prev => ({ ...prev, timeLimit: s }))}
-                      className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
-                        newQ.timeLimit === s ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:bg-gray-700"
-                      }`}
-                    >
-                      {s}秒
-                    </button>
-                  ))}
-                </div>
-
-                {createError && (
-                  <p className="text-red-400 text-sm bg-red-900/30 p-3 rounded-lg mb-4">{createError}</p>
-                )}
-
                 <button
-                  onClick={createQuestion}
-                  disabled={creating}
-                  className="w-full bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-black py-4 rounded-xl shadow-lg transition-colors text-lg"
+                  onClick={copyPasscode}
+                  className="bg-white text-blue-600 border border-blue-200 hover:bg-blue-100 px-4 py-2 rounded-xl font-bold transition-all"
                 >
-                  {creating ? "作成中..." : "📋 問題リストに追加"}
+                  📋 コピーする
                 </button>
               </div>
+            ) : (
+              <div className="text-center py-6 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400">
+                部屋が作成されていません
+              </div>
             )}
+          </section>
 
-            {/* 問題リスト */}
-            {room && (
-              <div className="bg-gray-900 rounded-2xl border border-gray-700 p-5 shadow-xl">
-                <h2 className="text-lg font-black text-white mb-4">
-                  📝 問題リスト
-                  <span className="ml-2 text-sm font-normal text-gray-400">({questions.length} 問)</span>
-                </h2>
-                {questions.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-6">まだ問題がありません。上のフォームから追加してください。</p>
-                ) : (
-                  <div className="space-y-4">
-                    {questions.map((q, idx) => {
-                      const isActive = gameState.question_id === q.id;
-                      return (
-                        <div
-                          key={q.id}
-                          className={`rounded-xl border-2 p-4 transition-all ${
-                            isActive ? "border-blue-500 bg-blue-900/20" : "border-gray-700 bg-gray-800"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3 mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-bold text-gray-400">第{idx + 1}問</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                                  q.type === "majority" ? "bg-purple-500/30 text-purple-300" : "bg-blue-500/30 text-blue-300"
-                                }`}>
-                                  {q.type === "majority" ? "マジョリティ" : "通常"}
-                                </span>
-                                <span className="text-xs text-gray-500">{q.timeLimit}秒</span>
-                                {q.type === "normal" && (
-                                  <span className="text-xs text-green-400 font-bold">
-                                    正解: {q.correctOption ? String.fromCharCode(64 + q.correctOption) : "?"}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-white font-bold">{q.text}</p>
-                              <div className="grid grid-cols-2 gap-1 mt-2">
-                                {q.options.map(opt => (
-                                  <span key={opt.id} className="text-xs text-gray-400">
-                                    {String.fromCharCode(64 + opt.order)}. {opt.text}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
+          {/* 問題作成フォーム */}
+          {room && (
+            <section className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+              <h2 className="text-2xl font-black text-gray-900 mb-6">問題を作成する</h2>
+              <form onSubmit={addQuestion} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-600 mb-2">問題文</label>
+                  <textarea
+                    required
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[100px] font-bold text-lg"
+                    value={newQ.text}
+                    onChange={e => setNewQ({ ...newQ, text: e.target.value })}
+                    placeholder="例: 保々中学校が創立されたのはいつ？"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-600 mb-2">クイズ形式</label>
+                    <select
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 font-bold"
+                      value={newQ.type}
+                      onChange={e => setNewQ({ ...newQ, type: e.target.value })}
+                    >
+                      <option value="normal">🎯 通常クイズ (正解あり)</option>
+                      <option value="majority">🤝 マジョリティ (多数派が正解)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-600 mb-2">制限時間 (秒)</label>
+                    <input
+                      type="number"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 font-bold"
+                      value={newQ.timeLimit}
+                      onChange={e => setNewQ({ ...newQ, timeLimit: parseInt(e.target.value) })}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-gray-600">選択肢と正解</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    {newQ.options.map((opt, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="correct"
+                          className="w-5 h-5 text-blue-600"
+                          checked={newQ.correctOption === i + 1}
+                          onChange={() => setNewQ({ ...newQ, correctOption: i + 1 })}
+                          disabled={newQ.type === "majority"}
+                        />
+                        <input
+                          type="text"
+                          required
+                          className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold"
+                          placeholder={`選択肢 ${String.fromCharCode(65 + i)}`}
+                          value={opt.text}
+                          onChange={e => {
+                            const opts = [...newQ.options];
+                            opts[i].text = e.target.value;
+                            setNewQ({ ...newQ, options: opts });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
+                >
+                  📋 問題リストに追加
+                </button>
+              </form>
+            </section>
+          )}
+
+          {/* 問題リスト & 進行管理 */}
+          {room && (
+            <section className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black text-gray-900">問題リスト</h2>
+                <button
+                  onClick={finishQuiz}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all"
+                >
+                  🏁 大会を終了する
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {questions.map((q, idx) => {
+                  const isCurrent = gameState.question_id === q.id;
+                  return (
+                    <div key={q.id} className={`border-2 rounded-2xl p-6 transition-all ${
+                      isCurrent ? "border-blue-500 bg-blue-50/50" : "border-gray-100 hover:border-gray-200"
+                    }`}>
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="bg-gray-900 text-white text-[10px] font-black px-2 py-0.5 rounded">Q{idx+1}</span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                              q.type === "majority" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
+                            }`}>
+                              {q.type === "majority" ? "MAJORITY" : "NORMAL"}
+                            </span>
                           </div>
-                          <div className="flex gap-2 flex-wrap">
+                          <p className="font-black text-gray-800 text-lg leading-tight mb-4">{q.text}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {q.options.map((o, i) => (
+                              <div key={o.id} className={`text-xs px-3 py-1.5 rounded-lg border ${
+                                q.type === "normal" && q.correctOption === i + 1 ? "bg-green-50 border-green-200 text-green-700 font-bold" : "bg-white border-gray-100 text-gray-500"
+                              }`}>
+                                {String.fromCharCode(65 + i)}. {o.text}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2 shrink-0">
+                          {gameState.state === "waiting" || gameState.state === "revealed" ? (
                             <button
                               onClick={() => startQuestion(q.id)}
-                              disabled={gameState.state === "answering"}
-                              className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-all"
                             >
                               ▶ 出題
                             </button>
+                          ) : isCurrent && gameState.state === "answering" ? (
                             <button
                               onClick={() => closeQuestion(q.id)}
-                              disabled={gameState.state !== "answering" || !isActive}
-                              className="bg-yellow-500 hover:bg-yellow-400 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-all"
                             >
-                              ⏱ 解答締め切り
+                              ⏱ 締め切り
                             </button>
+                          ) : isCurrent && gameState.state === "closed" ? (
                             <button
                               onClick={() => revealAnswer(q.id)}
-                              disabled={(gameState.state !== "answering" && gameState.state !== "closed") || !isActive}
-                              className="bg-red-500 hover:bg-red-400 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
+                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-all"
                             >
                               🎯 結果発表
                             </button>
-                          </div>
+                          ) : null}
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {questions.length === 0 && (
+                  <div className="text-center py-10 text-gray-400">問題がありません。上のフォームから作成してください。</div>
                 )}
               </div>
-            )}
-
-            {!room && (
-              <div className="bg-gray-900 rounded-2xl border border-dashed border-gray-600 p-12 text-center">
-                <div className="text-5xl mb-4">🚪</div>
-                <p className="text-gray-400 text-lg font-bold">まず「部屋を作成」してください</p>
-                <p className="text-gray-600 text-sm mt-2">部屋を作成するとパスコードが発行されます</p>
-              </div>
-            )}
-          </div>
+            </section>
+          )}
         </div>
       </div>
     </div>

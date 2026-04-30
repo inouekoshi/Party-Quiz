@@ -10,8 +10,8 @@ from app.quiz_state import state
 
 async def seed_questions(prisma: Prisma, room_id: int):
     """指定した部屋にサンプル問題を投入する"""
-    await prisma.option.delete_many()
-    await prisma.question.delete_many()
+    await prisma.option.delete_many(where={})
+    await prisma.question.delete_many(where={})
 
     # 問題1 (通常問題)
     await prisma.question.create(
