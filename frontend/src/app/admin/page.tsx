@@ -35,6 +35,8 @@ export default function AdminPage() {
         setGameState({ state: "revealed", question_id: wsMessage.data.question_id });
       } else if (wsMessage.event === "question_closed") {
         setGameState({ state: "closed", question_id: wsMessage.data.question_id });
+      } else if (wsMessage.event === "quiz_finished") {
+        setGameState({ state: "finished", question_id: null });
       }
     }
   }, [wsMessage]);
@@ -77,14 +79,30 @@ export default function AdminPage() {
             <span className={`px-4 py-2 rounded-full font-bold text-white ${
               gameState.state === "answering" ? "bg-red-500 animate-pulse" : 
               gameState.state === "closed" ? "bg-yellow-500" : 
-              gameState.state === "revealed" ? "bg-green-500" : "bg-gray-400"
+              gameState.state === "revealed" ? "bg-green-500" : 
+              gameState.state === "finished" ? "bg-purple-600" : "bg-gray-400"
             }`}>
               {gameState.state === "answering" ? `第${gameState.question_id}問 解答受付中` : 
                gameState.state === "closed" ? `第${gameState.question_id}問 解答締め切り済み` : 
-               gameState.state === "revealed" ? `第${gameState.question_id}問 結果発表済み` : "待機中"}
+               gameState.state === "revealed" ? `第${gameState.question_id}問 結果発表済み` : 
+               gameState.state === "finished" ? `全問終了・最終表彰` : "待機中"}
             </span>
           </div>
         </header>
+
+        {gameState.state !== "finished" && (
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={async () => {
+                if (!confirm("本当にすべての問題を終了して、最終表彰式へ進みますか？")) return;
+                await fetch("http://127.0.0.1:8000/api/admin/finish", { method: "POST" });
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg"
+            >
+              🎉 全問終了（最終結果発表へ）
+            </button>
+          </div>
+        )}
 
         <div className="bg-white rounded-xl shadow-sm p-6 overflow-x-auto">
           <table className="w-full text-left border-collapse">

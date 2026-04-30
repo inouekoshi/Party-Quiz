@@ -198,3 +198,16 @@ async def update_score(data: ScoreUpdate):
         }
     })
     return team
+
+@router.post("/admin/finish")
+async def finish_quiz():
+    """クイズ大会を終了し、最終表彰画面へ遷移させる"""
+    state.status = "finished"
+    teams = await prisma.team.find_many(order={"score": "desc"})
+    await manager.broadcast({
+        "event": "quiz_finished",
+        "data": {
+            "leaderboard": [t.model_dump() for t in teams]
+        }
+    })
+    return {"status": "finished"}

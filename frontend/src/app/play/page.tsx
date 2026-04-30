@@ -59,6 +59,8 @@ export default function PlayPage() {
         setGameState({ state: "revealed", question_id: wsMessage.data.question_id });
       } else if (wsMessage.event === "question_closed") {
         setGameState({ state: "closed", question_id: wsMessage.data.question_id });
+      } else if (wsMessage.event === "quiz_finished") {
+        setGameState({ state: "finished", question_id: null });
       }
     }
   }, [wsMessage]);
@@ -99,7 +101,8 @@ export default function PlayPage() {
         <div className="font-bold text-xl text-blue-600">{teamInfo.name} チーム</div>
         <div className="text-sm font-semibold px-3 py-1 bg-gray-200 rounded">
           {gameState.state === "answering" ? "⏳ 解答中" : 
-           gameState.state === "closed" ? "⏳ タイムアップ" : "待機中"}
+           gameState.state === "closed" ? "⏳ タイムアップ" : 
+           gameState.state === "finished" ? "🎉 終了" : "待機中"}
         </div>
       </header>
 
@@ -186,6 +189,19 @@ export default function PlayPage() {
               {hasAnswered 
                 ? "スクリーンで答え合わせをしましょう！"
                 : "解答時間切れとなりました..."}
+            </p>
+          </div>
+        )}
+
+        {gameState.state === "finished" && (
+          <div className="text-center p-8 bg-white rounded-xl shadow-md max-w-sm w-full animate-fade-in-up border-4 border-yellow-400">
+            <h2 className="text-4xl font-extrabold text-yellow-500 mb-4">🎉 大会終了 🎉</h2>
+            <p className="text-xl font-bold text-gray-700 mt-4">
+              すべての問題が終了しました！<br />
+              スクリーンで最終結果をご覧ください。
+            </p>
+            <p className="text-gray-500 mt-6 text-sm">
+              戦績は大会終了後に配布されるQRコードから確認できます。
             </p>
           </div>
         )}
