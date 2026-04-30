@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+
 export default function ResultPage() {
   const { team_id } = useParams();
   const router = useRouter();
@@ -12,7 +14,7 @@ export default function ResultPage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8000/api/teams/${team_id}/stats`);
+        const res = await fetch(`${API_URL}/teams/${team_id}/stats`);
         if (!res.ok) throw new Error("Stats not found");
         const data = await res.json();
         setStats(data);

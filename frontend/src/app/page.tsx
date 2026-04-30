@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+
 export default function Home() {
   const [teamName, setTeamName] = useState("");
   const [passcode, setPasscode] = useState("");
@@ -15,7 +17,7 @@ export default function Home() {
 
     try {
       // 本番ではログイン専用エンドポイントを分けますが、今回は簡易的に全チーム取得して照合か、なければ作成とします
-      const res = await fetch("http://127.0.0.1:8000/api/teams");
+      const res = await fetch(`${API_URL}/teams`);
       const teams = await res.json();
       
       const existingTeam = teams.find((t: any) => t.name === teamName);
@@ -31,7 +33,7 @@ export default function Home() {
         }
       } else {
         // 新規登録
-        const createRes = await fetch("http://127.0.0.1:8000/api/teams", {
+        const createRes = await fetch(`${API_URL}/teams`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: teamName, passcode }),

@@ -26,8 +26,11 @@ function CountUpScore({ targetScore }: { targetScore: number }) {
   return <>{score.toLocaleString()}</>;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://127.0.0.1:8000/ws";
+
 export default function ProjectorPage() {
-  const { wsMessage } = useWebSocket("ws://127.0.0.1:8000/ws");
+  const { wsMessage } = useWebSocket(WS_URL);
   const [gameState, setGameState] = useState<{ state: string, question_id: number | null }>({ 
     state: "waiting", 
     question_id: null 
@@ -43,7 +46,7 @@ export default function ProjectorPage() {
 
   const fetchGameState = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/state");
+      const res = await fetch(`${API_URL}/state`);
       const data = await res.json();
       setGameState({ state: data.status, question_id: data.current_question_id });
       if (data.current_question_id) {
@@ -75,7 +78,7 @@ export default function ProjectorPage() {
 
   const fetchQuestion = async (id: number) => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/questions");
+      const res = await fetch(`${API_URL}/questions`);
       const questions = await res.json();
       const target = questions.find((q: any) => q.id === id);
       setQuestionDetail(target);

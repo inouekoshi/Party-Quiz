@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { QRCodeSVG } from "qrcode.react";
+import QRCode from "react-qr-code";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://127.0.0.1:8000/ws";
 
 export default function PlayPage() {
   const router = useRouter();
   const [teamInfo, setTeamInfo] = useState<{ id: number, name: string } | null>(null);
   
-  const { wsMessage } = useWebSocket("ws://127.0.0.1:8000/ws");
+  const { wsMessage } = useWebSocket(WS_URL);
   const [gameState, setGameState] = useState<{ state: string, question_id: number | null }>({ 
     state: "waiting", 
     question_id: null 
@@ -34,7 +37,7 @@ export default function PlayPage() {
 
   const fetchGameState = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/state");
+      const res = await fetch(`${API_URL}/state`);
       const data = await res.json();
       setGameState({ state: data.status, question_id: data.current_question_id });
       // 如果正在回答，还需要获取 started_at 计算进度？
@@ -72,7 +75,7 @@ export default function PlayPage() {
     const timeTaken = (Date.now() - startTime) / 1000.0;
     
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/answers", {
+      const res = await fetch(`${API_URL}/answers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -204,7 +207,7 @@ export default function PlayPage() {
             <div className="mt-8 flex flex-col items-center bg-gray-50 p-6 rounded-xl border border-gray-200">
               <p className="text-gray-800 font-bold mb-4">👇 あなたのチームの詳細戦績を見る</p>
               <div className="p-4 bg-white rounded-lg shadow-sm border border-gray-100">
-                <QRCodeSVG value={`${window.location.origin}/result/${teamInfo.id}`} size={160} />
+                <QRCode value={`${window.location.origin}/result/${teamInfo.id}`} size={160} />
               </div>
               <button 
                 onClick={() => router.push(`/result/${teamInfo.id}`)}

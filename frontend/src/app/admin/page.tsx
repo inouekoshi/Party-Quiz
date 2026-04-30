@@ -2,9 +2,12 @@
 import { useState, useEffect } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://127.0.0.1:8000/ws";
+
 export default function AdminPage() {
   const [questions, setQuestions] = useState<any[]>([]);
-  const { wsMessage } = useWebSocket("ws://127.0.0.1:8000/ws");
+  const { wsMessage } = useWebSocket(WS_URL);
   
   // スマホやプロジェクタと同じように進行状況を把握する
   const [gameState, setGameState] = useState<{ state: string, question_id: number | null }>({ 
@@ -19,7 +22,7 @@ export default function AdminPage() {
 
   const fetchGameState = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/state");
+      const res = await fetch(`${API_URL}/state`);
       const data = await res.json();
       setGameState({ state: data.status, question_id: data.current_question_id });
     } catch (e) {
@@ -43,7 +46,7 @@ export default function AdminPage() {
 
   const fetchQuestions = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/questions");
+      const res = await fetch(`${API_URL}/questions`);
       const data = await res.json();
       setQuestions(data);
     } catch (e) {
@@ -54,7 +57,7 @@ export default function AdminPage() {
   const startQuestion = async (questionId: number) => {
     if (!confirm(`本当に「第${questionId}問」を出題しますか？`)) return;
     try {
-      await fetch(`http://127.0.0.1:8000/api/admin/start/${questionId}`, { method: "POST" });
+      await fetch(`${API_URL}/admin/start/${questionId}`, { method: "POST" });
     } catch (e) {
       alert("Failed to start question");
     }
@@ -63,7 +66,7 @@ export default function AdminPage() {
   const revealAnswer = async (questionId: number) => {
     if (!confirm(`解答を締め切り、「第${questionId}問」の結果を発表しますか？`)) return;
     try {
-      await fetch(`http://127.0.0.1:8000/api/admin/reveal/${questionId}`, { method: "POST" });
+      await fetch(`${API_URL}/admin/reveal/${questionId}`, { method: "POST" });
     } catch (e) {
       alert("Failed to reveal answer");
     }
@@ -95,7 +98,7 @@ export default function AdminPage() {
             <button
               onClick={async () => {
                 if (!confirm("本当にすべての問題を終了して、最終表彰式へ進みますか？")) return;
-                await fetch("http://127.0.0.1:8000/api/admin/finish", { method: "POST" });
+                await fetch(`${API_URL}/admin/finish`, { method: "POST" });
               }}
               className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg"
             >
@@ -150,7 +153,7 @@ export default function AdminPage() {
                     <button 
                       onClick={async () => {
                         if (!confirm(`解答受付を強制打ち切りしますか？`)) return;
-                        await fetch(`http://127.0.0.1:8000/api/admin/close/${q.id}`, { method: "POST" });
+                        await fetch(`${API_URL}/admin/close/${q.id}`, { method: "POST" });
                       }}
                       disabled={gameState.state !== "answering" || gameState.question_id !== q.id}
                       className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded shadow transition-colors"
