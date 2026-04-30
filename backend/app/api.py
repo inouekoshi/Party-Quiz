@@ -5,7 +5,7 @@ from datetime import datetime
 import random
 import string
 
-from .main import prisma
+from .db import prisma
 from .ws import manager
 from .quiz_state import state
 

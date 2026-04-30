@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prisma import Prisma
+from .db import prisma
 
 app = FastAPI(title="Hobo Reunion Quiz API")
-prisma = Prisma()
 
 app.add_middleware(
     CORSMiddleware,
