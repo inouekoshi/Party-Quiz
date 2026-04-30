@@ -1,32 +1,25 @@
 #!/usr/bin/env bash
-# Render Build Script
 set -o errexit
 
 # 1. 依存関係のインストール
 pip install -r requirements.txt
 
-# 2. バイナリをダウンロード
-# 確実にダウンロードさせるため、一度デフォルトの場所に落とします
-prisma py fetch
+# 2. Prismaエンジンバイナリのマニュアルダウンロード
+# ログから特定したハッシュ（5.11.0）と、RenderのOS（Debian OpenSSL 3.0.x）を直接指定
+ENGINE_HASH="efd2449663b3d73d637ea1fd226bafbcf45b3102"
+BINARY_NAME="prisma-query-engine-debian-openssl-3.0.x"
 
-# 3. バイナリをカレントディレクトリ（backend/）に強制コピー
-# ファイル名のパターンを広げ、パスを再帰的に検索してすべて現在の階層に集めます
-echo "Searching for Prisma binaries..."
-find /opt/render/.cache/prisma-python/binaries -name "*query-engine*" -exec cp {} . \;
+echo "Step: Downloading Prisma engine binary directly..."
+curl -L "https://binaries.prisma.sh/all_commits/${ENGINE_HASH}/debian-openssl-3.0.x/query-engine.gz" -o query-engine.gz
+gunzip -f query-engine.gz
+mv -f query-engine "$BINARY_NAME"
+chmod +x "$BINARY_NAME"
 
-# 4. コピーされたバイナリを確認し、実行権限を付与
-# ファイルが存在するかチェックしてから chmod を実行します
-if ls *query-engine* 1> /dev/null 2>&1; then
-    echo "Prisma binaries found and copying... granting execution permissions."
-    chmod +x *query-engine*
-else
-    echo "ERROR: Prisma binaries not found in cache. Listing cache content for debug:"
-    ls -R /opt/render/.cache/prisma-python/
-    exit 1
-fi
+echo "Status: Prisma engine binary ($BINARY_NAME) is placed in backend root."
 
-# 5. クライアント生成
+# 3. クライアント生成
+# ここでバイナリが同ディレクトリにあることを検知させます
 prisma generate
 
-# 6. DB構造の反映
+# 4. DB構造の反映
 prisma db push
