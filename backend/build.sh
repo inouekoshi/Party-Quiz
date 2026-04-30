@@ -22,4 +22,4 @@ echo "Status: Prisma engine binary ($BINARY_NAME) is placed in backend root."
 prisma generate
 
 # 4. DB構造の反映
-prisma db push
+prisma db push --accept-data-loss
