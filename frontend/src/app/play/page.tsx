@@ -19,7 +19,7 @@ export default function PlayPage() {
   const [hasAnswered, setHasAnswered] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  // マウント時にlocalStorageからチーム情報取得
+  // マウント時にlocalStorageからチーム情報取得とステータス復元
   useEffect(() => {
     const id = localStorage.getItem("teamId");
     const name = localStorage.getItem("teamName");
@@ -27,8 +27,24 @@ export default function PlayPage() {
       router.push("/");
     } else {
       setTeamInfo({ id: parseInt(id), name });
+      fetchGameState();
     }
   }, [router]);
+
+  const fetchGameState = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/state");
+      const data = await res.json();
+      setGameState({ state: data.status, question_id: data.current_question_id });
+      // 如果正在回答，还需要获取 started_at 计算进度？
+      // To simplify, if answering, just assume time is somewhat advanced or restart it.
+      if (data.status === "answering" && data.started_at) {
+        setStartTime(new Date(data.started_at).getTime());
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // WebSocketのメッセージに応じて状態を更新
   useEffect(() => {
@@ -41,6 +57,8 @@ export default function PlayPage() {
         setSubmitError("");
       } else if (wsMessage.event === "answer_revealed") {
         setGameState({ state: "revealed", question_id: wsMessage.data.question_id });
+      } else if (wsMessage.event === "question_closed") {
+        setGameState({ state: "closed", question_id: wsMessage.data.question_id });
       }
     }
   }, [wsMessage]);
@@ -80,7 +98,8 @@ export default function PlayPage() {
       <header className="bg-white shadow p-4 rounded-lg flex justify-between items-center mb-6">
         <div className="font-bold text-xl text-blue-600">{teamInfo.name} チーム</div>
         <div className="text-sm font-semibold px-3 py-1 bg-gray-200 rounded">
-          {gameState.state === "answering" ? "⏳ 解答中" : "待機中"}
+          {gameState.state === "answering" ? "⏳ 解答中" : 
+           gameState.state === "closed" ? "⏳ タイムアップ" : "待機中"}
         </div>
       </header>
 
@@ -148,6 +167,15 @@ export default function PlayPage() {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {gameState.state === "closed" && (
+          <div className="text-center p-8 bg-white rounded-xl shadow-md max-w-sm w-full">
+            <h2 className="text-3xl font-extrabold text-yellow-600 mb-4">タイムアップ！</h2>
+            <p className="text-gray-600">
+              まもなく結果が発表されます...<br/>スクリーンにご注目ください！
+            </p>
           </div>
         )}
 

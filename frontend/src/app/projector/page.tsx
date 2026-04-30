@@ -12,6 +12,24 @@ export default function ProjectorPage() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [questionDetail, setQuestionDetail] = useState<any>(null);
 
+  // 初期状態と再接続時のステート復旧
+  useEffect(() => {
+    fetchGameState();
+  }, []);
+
+  const fetchGameState = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/state");
+      const data = await res.json();
+      setGameState({ state: data.status, question_id: data.current_question_id });
+      if (data.current_question_id) {
+        fetchQuestion(data.current_question_id);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // 進行状態の変更を受け取る
   useEffect(() => {
     if (wsMessage) {
@@ -22,6 +40,8 @@ export default function ProjectorPage() {
       } else if (wsMessage.event === "answer_revealed") {
         setGameState({ state: "revealed", question_id: wsMessage.data.question_id });
         setLeaderboard(wsMessage.data.leaderboard);
+      } else if (wsMessage.event === "question_closed") {
+        setGameState({ state: "closed", question_id: wsMessage.data.question_id });
       }
     }
   }, [wsMessage]);
@@ -79,6 +99,13 @@ export default function ProjectorPage() {
             <p className="text-3xl pt-8 text-yellow-400 font-bold animate-pulse tracking-wide">
               🕒 制限時間 {questionDetail.timeLimit}秒 - お手元の端末で解答してください！
             </p>
+          </div>
+        )}
+
+        {gameState.state === "closed" && (
+          <div className="text-center space-y-4">
+             <div className="text-8xl mb-8 animate-bounce">⏳</div>
+             <p className="text-5xl text-yellow-400 font-bold tracking-widest">タイムアップ！集計中...</p>
           </div>
         )}
 

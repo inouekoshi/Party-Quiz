@@ -14,7 +14,18 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchQuestions();
+    fetchGameState();
   }, []);
+
+  const fetchGameState = async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/state");
+      const data = await res.json();
+      setGameState({ state: data.status, question_id: data.current_question_id });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => {
     if (wsMessage) {
@@ -22,6 +33,8 @@ export default function AdminPage() {
         setGameState({ state: "answering", question_id: wsMessage.data.question_id });
       } else if (wsMessage.event === "answer_revealed") {
         setGameState({ state: "revealed", question_id: wsMessage.data.question_id });
+      } else if (wsMessage.event === "question_closed") {
+        setGameState({ state: "closed", question_id: wsMessage.data.question_id });
       }
     }
   }, [wsMessage]);
@@ -63,9 +76,11 @@ export default function AdminPage() {
             <span className="font-bold text-gray-600">現在のステータス:</span>
             <span className={`px-4 py-2 rounded-full font-bold text-white ${
               gameState.state === "answering" ? "bg-red-500 animate-pulse" : 
+              gameState.state === "closed" ? "bg-yellow-500" : 
               gameState.state === "revealed" ? "bg-green-500" : "bg-gray-400"
             }`}>
               {gameState.state === "answering" ? `第${gameState.question_id}問 解答受付中` : 
+               gameState.state === "closed" ? `第${gameState.question_id}問 解答締め切り済み` : 
                gameState.state === "revealed" ? `第${gameState.question_id}問 結果発表済み` : "待機中"}
             </span>
           </div>
@@ -115,11 +130,21 @@ export default function AdminPage() {
                       出題
                     </button>
                     <button 
-                      onClick={() => revealAnswer(q.id)}
+                      onClick={async () => {
+                        if (!confirm(`解答受付を強制打ち切りしますか？`)) return;
+                        await fetch(`http://127.0.0.1:8000/api/admin/close/${q.id}`, { method: "POST" });
+                      }}
                       disabled={gameState.state !== "answering" || gameState.question_id !== q.id}
+                      className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded shadow transition-colors"
+                    >
+                      強制打ち切り
+                    </button>
+                    <button 
+                      onClick={() => revealAnswer(q.id)}
+                      disabled={(gameState.state !== "answering" && gameState.state !== "closed") || gameState.question_id !== q.id}
                       className="bg-red-500 hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded shadow transition-colors"
                     >
-                      解答終了＆発表
+                      結果発表
                     </button>
                   </td>
                 </tr>
