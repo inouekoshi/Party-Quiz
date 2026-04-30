@@ -32,6 +32,15 @@ from datetime import datetime
 from .ws import manager
 from .quiz_state import state
 
+@router.get("/state")
+async def get_state():
+    """現在のクイズの進行ステータスを返す（リロード・再接続時の復帰用）"""
+    return {
+        "current_question_id": state.current_question_id,
+        "status": state.status,
+        "started_at": state.started_at.isoformat() if state.started_at else None
+    }
+
 @router.get("/questions")
 async def get_questions():
     return await prisma.question.find_many(include={"options": True})
@@ -80,6 +89,19 @@ async def start_question(question_id: int):
         "data": {"question_id": question_id}
     })
     return {"status": "started", "question_id": question_id}
+
+@router.post("/admin/close/{question_id}")
+async def close_question(question_id: int):
+    """解答の受付を強制終了する（結果発表はまだしない）"""
+    if state.current_question_id != question_id or state.status != "answering":
+        raise HTTPException(status_code=400, detail="Cannot close at this state")
+        
+    state.status = "closed"
+    await manager.broadcast({
+        "event": "question_closed",
+        "data": {"question_id": question_id}
+    })
+    return {"status": "closed", "question_id": question_id}
 
 @router.post("/admin/reveal/{question_id}")
 async def reveal_answer(question_id: int):
@@ -155,3 +177,24 @@ async def reveal_answer(question_id: int):
     
     return {"status": "revealed", "question_id": question_id}
 
+class ScoreUpdate(BaseModel):
+    team_id: int
+    score_delta: float
+
+@router.post("/admin/score")
+async def update_score(data: ScoreUpdate):
+    """管理者が特定のチームのスコアを手動で増減させる（誤操作の修正用）"""
+    team = await prisma.team.update(
+        where={"id": data.team_id},
+        data={"score": {"increment": data.score_delta}}
+    )
+    
+    # スコア修正後、最新ランキングを再配信する
+    teams = await prisma.team.find_many(order={"score": "desc"})
+    await manager.broadcast({
+        "event": "leaderboard_updated",
+        "data": {
+            "leaderboard": [t.model_dump() for t in teams]
+        }
+    })
+    return team
