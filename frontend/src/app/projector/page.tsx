@@ -281,33 +281,39 @@ export default function ProjectorPage() {
               {currentQuestion.options.map((opt, i) => {
                 const votes = revealData.option_vote_counts[opt.id.toString()] || 0;
                 const pct = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                // isCorrect: マジョリティなら多数派が正解等の判定も考えられるが、ここでは通常/マジョリティ問わず色分け制御に使うフラグ
                 const isCorrect = revealData.question_type === "normal" && revealData.correct_option === opt.order;
+                const isIncorrect = revealData.question_type === "normal" && revealData.correct_option !== null && revealData.correct_option !== opt.order;
+                
                 return (
                   <div
                     key={opt.id}
                     className={`rounded-xl border-2 p-4 transition-all ${
-                      isCorrect ? "border-green-400 bg-green-900/30 shadow-[0_0_30px_rgba(74,222,128,0.3)]" :
+                      isCorrect ? "border-green-500 bg-green-900/30 shadow-[0_0_30px_rgba(34,197,94,0.3)]" :
+                      isIncorrect ? "border-red-500 bg-red-900/30 shadow-[0_0_30px_rgba(239,68,68,0.2)] opacity-60" :
                       `${optionBorderColors[i]} ${optionBgColors[i]}`
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-3">
-                      <span className={`text-2xl font-black ${isCorrect ? "text-green-400" : optionTextColors[i]}`}>
+                      <span className={`text-2xl font-black ${isCorrect ? "text-green-500" : isIncorrect ? "text-red-500" : optionTextColors[i]}`}>
                         {String.fromCharCode(64 + opt.order)}.
                       </span>
-                      <span className="text-lg font-bold text-white flex-1">{opt.text}</span>
+                      <span className={`text-lg font-bold flex-1 ${isCorrect ? "text-green-100" : isIncorrect ? "text-red-200" : "text-white"}`}>{opt.text}</span>
                       {isCorrect && <span className="text-2xl">✅</span>}
                     </div>
                     <div className="h-4 bg-gray-800 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-1000 ${
-                          isCorrect ? "bg-green-400" : `bg-gradient-to-r ${["from-red-400 to-red-500", "from-blue-400 to-blue-500", "from-green-400 to-green-500", "from-yellow-400 to-yellow-500"][i]}`
+                          isCorrect ? "bg-green-500" :
+                          isIncorrect ? "bg-red-600" :
+                          `bg-gradient-to-r ${["from-red-400 to-red-500", "from-blue-400 to-blue-500", "from-green-400 to-green-500", "from-yellow-400 to-yellow-500"][i]}`
                         }`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                     <div className="flex justify-between mt-1">
-                      <span className="text-xs text-gray-400">{votes}票</span>
-                      <span className="text-sm font-black text-white">{pct}%</span>
+                      <span className={`text-xs ${isCorrect ? "text-green-300" : isIncorrect ? "text-red-400" : "text-gray-400"}`}>{votes}票</span>
+                      <span className={`text-sm font-black ${isCorrect ? "text-green-400" : isIncorrect ? "text-red-500" : "text-white"}`}>{pct}%</span>
                     </div>
                   </div>
                 );
