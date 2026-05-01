@@ -7,9 +7,9 @@
 
 実際に以下のURLにアクセスして、システムを利用・テストすることができます。
 
-- 📱 **参加者・解答画面**: [https://party-quiz.vercel.app/](https://party-quiz.vercel.app/)
-- 💻 **プロジェクター画面**: [https://party-quiz.vercel.app/projector](https://party-quiz.vercel.app/projector)
-- ⚙️ **管理者・司会者画面**: [https://party-quiz.vercel.app/admin](https://party-quiz.vercel.app/admin)
+- 📱 **参加者・解答画面**: [https://hobo-reunion-quiz.vercel.app/](https://hobo-reunion-quiz.vercel.app/)
+- 💻 **プロジェクター画面**: [https://hobo-reunion-quiz.vercel.app/projector](https://hobo-reunion-quiz.vercel.app/projector)
+- ⚙️ **管理者・司会者画面**: [https://hobo-reunion-quiz.vercel.app/admin](https://hobo-reunion-quiz.vercel.app/admin)
 
 ## ✨ 主な機能とクイズルール
 
@@ -39,7 +39,7 @@
 ## 📂 ディレクトリ構成
 
 ```text
-party-quiz/
+hobo-reunion-quiz/
 ├── backend/          # FastAPI & PrismaによるバックエンドAPI・WebSocketサーバー
 │   ├── app/          # APIルーター、状態管理(quiz_state.py)、WS管理(ws.py)、DB接続(db.py)
 │   ├── prisma/       # データベーススキーマ (schema.prisma)

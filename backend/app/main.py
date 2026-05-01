@@ -7,7 +7,7 @@ app = FastAPI(title="Party Quiz API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://party-quiz.vercel.app",
+        "https://hobo-reunion-quiz.vercel.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
