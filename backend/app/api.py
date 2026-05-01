@@ -221,6 +221,57 @@ async def create_question(data: QuestionCreate):
     return question_with_options
 
 
+@router.put("/admin/questions/{question_id}")
+async def update_question(question_id: int, data: QuestionCreate):
+    """管理者が問題を更新する"""
+    await ensure_room_state()
+    if state.room_id is None:
+        raise HTTPException(status_code=400, detail="部屋がありません")
+    
+    question = await prisma.question.find_unique(where={"id": question_id}, include={"options": True})
+    if not question:
+        raise HTTPException(status_code=404, detail="問題が見つかりません")
+
+    # オプションを更新 (IDを変えずに安全に更新する)
+    # data.optionsは4つ送られてくる想定
+    sorted_old_opts = sorted(question.options, key=lambda x: x.order)
+    sorted_new_opts = sorted(data.options, key=lambda x: x.order)
+    
+    for old_opt, new_opt in zip(sorted_old_opts, sorted_new_opts):
+        await prisma.option.update(
+            where={"id": old_opt.id},
+            data={"text": new_opt.text}
+        )
+
+    updated_question = await prisma.question.update(
+        where={"id": question_id},
+        data={
+            "text": data.text,
+            "type": data.type,
+            "timeLimit": data.time_limit,
+            "correctOption": data.correct_option,
+        },
+        include={"options": True}
+    )
+    return updated_question
+
+
+@router.delete("/admin/questions/{question_id}")
+async def delete_question(question_id: int):
+    """管理者が問題を削除する"""
+    await ensure_room_state()
+    question = await prisma.question.find_unique(where={"id": question_id})
+    if not question:
+        raise HTTPException(status_code=404, detail="問題が見つかりません")
+
+    # 関連データを削除
+    await prisma.answer.delete_many(where={"questionId": question_id})
+    await prisma.option.delete_many(where={"questionId": question_id})
+    
+    await prisma.question.delete(where={"id": question_id})
+    return {"status": "deleted"}
+
+
 @router.get("/admin/questions")
 async def get_admin_questions():
     """管理者用: 現在の部屋の全問題リストを返す"""

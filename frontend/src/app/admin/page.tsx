@@ -38,8 +38,9 @@ export default function AdminPage() {
     question_id: null,
   });
 
-  // 問題作成フォーム
+  // 問題作成・編集フォーム
   const [newQ, setNewQ] = useState({
+    id: null as number | null,
     text: "",
     type: "normal",
     timeLimit: 60,
@@ -51,6 +52,22 @@ export default function AdminPage() {
       { text: "", order: 4 },
     ],
   });
+
+  const resetForm = () => {
+    setNewQ({
+      id: null,
+      text: "",
+      type: "normal",
+      timeLimit: 60,
+      correctOption: 1,
+      options: [
+        { text: "", order: 1 },
+        { text: "", order: 2 },
+        { text: "", order: 3 },
+        { text: "", order: 4 },
+      ],
+    });
+  };
 
   // 初期ロード
   useEffect(() => {
@@ -137,18 +154,18 @@ export default function AdminPage() {
         options: newQ.options,
         roomId: room.id
       };
-      const res = await fetch(`${API_URL}/admin/questions`, {
-        method: "POST",
+      
+      const url = newQ.id ? `${API_URL}/admin/questions/${newQ.id}` : `${API_URL}/admin/questions`;
+      const method = newQ.id ? "PUT" : "POST";
+      
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
         fetchQuestions(room.id);
-        setNewQ({
-          ...newQ,
-          text: "",
-          options: newQ.options.map(o => ({ ...o, text: "" })),
-        });
+        resetForm();
       }
     } catch (e) {
       console.error(e);
@@ -168,6 +185,30 @@ export default function AdminPage() {
   const revealAnswer = async (qId: number) => {
     if (!confirm("正解・結果を発表しますか？")) return;
     await fetch(`${API_URL}/admin/reveal/${qId}`, { method: "POST" });
+  };
+
+  const editQuestion = (q: Question) => {
+    setNewQ({
+      id: q.id,
+      text: q.text,
+      type: q.type,
+      timeLimit: q.timeLimit,
+      correctOption: q.correctOption || 1,
+      options: q.options.map(o => ({ text: o.text, order: o.order })),
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const deleteQuestion = async (qId: number) => {
+    if (!room) return;
+    if (!confirm("この問題を削除しますか？(元に戻せません)")) return;
+    const res = await fetch(`${API_URL}/admin/questions/${qId}`, { method: "DELETE" });
+    if (res.ok) {
+      fetchQuestions(room.id);
+    } else {
+      const data = await res.json();
+      alert("削除に失敗しました: " + data.detail);
+    }
   };
 
   const finishQuiz = async () => {
@@ -313,12 +354,23 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
-                >
-                  📋 問題リストに追加
-                </button>
+                <div className="flex gap-4 w-full">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all"
+                  >
+                    {newQ.id ? "💾 変更を保存" : "📋 問題リストに追加"}
+                  </button>
+                  {newQ.id && (
+                    <button
+                      type="button"
+                      onClick={resetForm}
+                      className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-black py-4 px-8 rounded-2xl transition-all"
+                    >
+                      キャンセル
+                    </button>
+                  )}
+                </div>
               </form>
             </section>
           )}
@@ -345,13 +397,33 @@ export default function AdminPage() {
                     }`}>
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="bg-gray-900 text-white text-[10px] font-black px-2 py-0.5 rounded">Q{idx+1}</span>
-                            <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
-                              q.type === "majority" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
-                            }`}>
-                              {q.type === "majority" ? "MAJORITY" : "NORMAL"}
-                            </span>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="bg-gray-900 text-white text-[10px] font-black px-2 py-0.5 rounded">Q{idx+1}</span>
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                                q.type === "majority" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
+                              }`}>
+                                {q.type === "majority" ? "MAJORITY" : "NORMAL"}
+                              </span>
+                            </div>
+                            
+                            {/* 編集・削除ボタン */}
+                            {!(isCurrent && (gameState.state === "answering" || gameState.state === "closed")) ? (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => editQuestion(q)}
+                                  className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold transition-all"
+                                >
+                                  ✏️ 編集
+                                </button>
+                                <button
+                                  onClick={() => deleteQuestion(q.id)}
+                                  className="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2 py-1 rounded font-bold transition-all"
+                                >
+                                  🗑 削除
+                                </button>
+                              </div>
+                            ) : null}
                           </div>
                           <p className="font-black text-gray-800 text-lg leading-tight mb-4">{q.text}</p>
                           <div className="grid grid-cols-2 gap-2">
