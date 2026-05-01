@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
+import asyncio
 import random
 import string
 
@@ -29,6 +30,7 @@ def generate_passcode(length: int = 5) -> str:
 @router.post("/admin/room")
 async def create_room():
     """管理者が部屋を作成し、パスコードを発行する"""
+    await ensure_room_state()
     # 既存の全部屋を非アクティブにする
     await prisma.room.update_many(where={}, data={"isActive": False})
 
@@ -61,6 +63,7 @@ async def create_room():
 @router.get("/admin/room")
 async def get_current_room():
     """現在アクティブな部屋を返す"""
+    await ensure_room_state()
     room = await prisma.room.find_first(where={"isActive": True}, order={"createdAt": "desc"})
     if not room:
         return {"room": None}
@@ -80,6 +83,7 @@ class RoomJoin(BaseModel):
 @router.post("/room/join")
 async def join_room(data: RoomJoin):
     """パスコードでチームが部屋に入室する（新規チームは自動作成）"""
+    await ensure_room_state()
     room = await prisma.room.find_first(
         where={"passcode": data.passcode, "isActive": True}
     )
@@ -132,10 +136,23 @@ async def get_teams():
 
 
 async def ensure_room_state():
+    # Prismaが接続されるまで最大5秒待機
+    for _ in range(50):
+        if prisma.is_connected():
+            break
+        await asyncio.sleep(0.1)
+
+    if not prisma.is_connected():
+        print("Warning: Prisma is not connected. Operation might fail.")
+        return
+
     if state.room_id is None:
-        active_room = await prisma.room.find_first(where={"isActive": True}, order={"createdAt": "desc"})
-        if active_room:
-            state.room_id = active_room.id
+        try:
+            active_room = await prisma.room.find_first(where={"isActive": True}, order={"createdAt": "desc"})
+            if active_room:
+                state.room_id = active_room.id
+        except Exception as e:
+            print(f"Error recovering room state: {e}")
 
 @router.get("/state")
 async def get_state():
@@ -390,6 +407,7 @@ class AnswerSubmit(BaseModel):
 
 @router.post("/answers")
 async def submit_answer(ans: AnswerSubmit):
+    await ensure_room_state()
     if state.current_question_id != ans.question_id or state.status != "answering":
         raise HTTPException(status_code=400, detail="現在この問題の解答を受け付けていません")
 

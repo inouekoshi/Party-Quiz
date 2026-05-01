@@ -6,7 +6,11 @@ app = FastAPI(title="Hobo Reunion Quiz API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://hobo-reunion-quiz.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -16,9 +20,15 @@ import asyncio
 
 @app.on_event("startup")
 async def startup():
-    # Renderのポートスキャン誤検知（Prismaエンジンのポートを先に見つけてしまう問題）を防ぐため、
-    # Uvicornのポートバインディングを優先させるよう非同期タスクとして接続します。
-    asyncio.create_task(prisma.connect())
+    # Renderのポートスキャン誤検知を防ぐためバックグラウンドで接続を開始
+    async def connect_with_retry():
+        try:
+            await prisma.connect()
+            print("Prisma connected successfully")
+        except Exception as e:
+            print(f"Prisma connection failed: {e}")
+
+    asyncio.create_task(connect_with_retry())
 
 @app.on_event("shutdown")
 async def shutdown():
