@@ -129,10 +129,18 @@ export default function AdminPage() {
     e.preventDefault();
     if (!room) return;
     try {
+      const payload = {
+        text: newQ.text,
+        type: newQ.type,
+        time_limit: newQ.timeLimit,
+        correct_option: newQ.correctOption,
+        options: newQ.options,
+        roomId: room.id
+      };
       const res = await fetch(`${API_URL}/admin/questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newQ, roomId: room.id }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         fetchQuestions(room.id);
@@ -204,7 +212,9 @@ export default function AdminPage() {
             <div className="flex justify-between items-start mb-6">
               <div>
                 <h2 className="text-2xl font-black text-gray-900 mb-1">部屋の管理</h2>
-                <p className="text-gray-500 text-sm">大会を開始するには部屋を作成してください</p>
+                <p className="text-gray-500 text-sm">
+                  {room ? "現在アクティブな部屋の情報です" : "大会を開始するには部屋を作成してください"}
+                </p>
               </div>
               <button
                 onClick={createRoom}
