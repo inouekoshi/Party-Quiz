@@ -252,6 +252,7 @@ async def get_questions():
 
 @router.post("/admin/start/{question_id}")
 async def start_question(question_id: int):
+    await ensure_room_state()
     state.current_question_id = question_id
     state.status = "answering"
     state.started_at = datetime.now()

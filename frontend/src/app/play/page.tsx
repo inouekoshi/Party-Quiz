@@ -61,7 +61,7 @@ export default function PlayPage() {
 
   const fetchGameState = async (teamId: number) => {
     try {
-      const res = await fetch(`${API_URL}/state`);
+      const res = await fetch(`${API_URL}/state`, { cache: "no-store" });
       const data = await res.json();
       setGameState({ state: data.status, question_id: data.current_question_id });
       if (data.status === "answering" && data.started_at) {

@@ -59,13 +59,13 @@ export default function AdminPage() {
 
   const fetchInitialState = async () => {
     try {
-      const res = await fetch(`${API_URL}/state`);
+      const res = await fetch(`${API_URL}/state`, { cache: "no-store" });
       const data = await res.json();
       setGameState({ state: data.status, question_id: data.current_question_id });
       if (data.leaderboard) setTeams(data.leaderboard);
 
       // アクティブな部屋を取得
-      const roomRes = await fetch(`${API_URL}/admin/room`);
+      const roomRes = await fetch(`${API_URL}/admin/room`, { cache: "no-store" });
       const roomData = await roomRes.json();
       if (roomData && roomData.room) {
         setRoom(roomData.room);
@@ -79,7 +79,7 @@ export default function AdminPage() {
 
   const fetchQuestions = async (roomId: number) => {
     try {
-      const res = await fetch(`${API_URL}/admin/questions?room_id=${roomId}`);
+      const res = await fetch(`${API_URL}/admin/questions?room_id=${roomId}`, { cache: "no-store" });
       const data = await res.json();
       setQuestions(data);
     } catch (e) {
@@ -278,7 +278,7 @@ export default function AdminPage() {
                       type="number"
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 font-bold"
                       value={newQ.timeLimit}
-                      onChange={e => setNewQ({ ...newQ, timeLimit: parseInt(e.target.value) })}
+                      onChange={e => setNewQ({ ...newQ, timeLimit: parseInt(e.target.value) || 0 })}
                     />
                   </div>
                 </div>

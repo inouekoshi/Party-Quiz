@@ -144,7 +144,7 @@ export default function ProjectorPage() {
 
   const fetchInitialState = async () => {
     try {
-      const res = await fetch(`${API_URL}/state`);
+      const res = await fetch(`${API_URL}/state`, { cache: "no-store" });
       const data = await res.json();
       setGameState({ state: data.status, question_id: data.current_question_id });
       if (data.leaderboard) setLeaderboard(data.leaderboard);
