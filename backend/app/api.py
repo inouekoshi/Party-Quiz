@@ -5,6 +5,7 @@ from datetime import datetime
 import asyncio
 import random
 import string
+import json
 
 from .db import prisma
 from .ws import manager
@@ -68,7 +69,7 @@ async def get_current_room():
     if not room:
         return {"room": None}
     teams = await prisma.team.find_many(where={"roomId": room.id}, order={"score": "desc"})
-    return {"room": room.model_dump(), "teams": [t.model_dump() for t in teams]}
+    return {"room": json.loads(room.model_dump_json()), "teams": [json.loads(t.model_dump_json()) for t in teams]}
 
 
 # ─────────────────────────────────────────
@@ -113,7 +114,7 @@ async def join_room(data: RoomJoin):
     teams = await prisma.team.find_many(where={"roomId": room.id}, order={"score": "desc"})
     await manager.broadcast({
         "event": "leaderboard_updated",
-        "data": {"leaderboard": [t.model_dump() for t in teams]}
+        "data": {"leaderboard": [json.loads(t.model_dump_json()) for t in teams]}
     })
 
     return {
@@ -163,7 +164,7 @@ async def get_state():
 
     if state.room_id:
         teams = await prisma.team.find_many(where={"roomId": state.room_id}, order={"score": "desc"})
-        leaderboard = [t.model_dump() for t in teams]
+        leaderboard = [json.loads(t.model_dump_json()) for t in teams]
 
     return {
         "current_question_id": state.current_question_id,
@@ -265,7 +266,7 @@ async def start_question(question_id: int):
         "event": "question_started",
         "data": {
             "question_id": question_id,
-            "question": question.model_dump() if question else None,
+            "question": json.loads(question.model_dump_json()) if question else None,
         }
     })
     return {"status": "started", "question_id": question_id}
@@ -371,7 +372,7 @@ async def reveal_answer(question_id: int):
             "question_type": question.type if question else "unknown",
             "correct_option": question.correctOption if question else None,
             "option_vote_counts": option_vote_counts,
-            "leaderboard": [t.model_dump() for t in teams],
+            "leaderboard": [json.loads(t.model_dump_json()) for t in teams],
         }
     })
 
@@ -389,7 +390,7 @@ async def finish_quiz():
     )
     await manager.broadcast({
         "event": "quiz_finished",
-        "data": {"leaderboard": [t.model_dump() for t in teams]}
+        "data": {"leaderboard": [json.loads(t.model_dump_json()) for t in teams]}
     })
     return {"status": "finished"}
 
@@ -476,7 +477,7 @@ async def update_score(data: ScoreUpdate):
     )
     await manager.broadcast({
         "event": "leaderboard_updated",
-        "data": {"leaderboard": [t.model_dump() for t in teams]}
+        "data": {"leaderboard": [json.loads(t.model_dump_json()) for t in teams]}
     })
     return team
 
